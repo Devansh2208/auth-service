@@ -12,6 +12,7 @@ app.use(express.json());
 connectDB();
 
 app.use("/api/auth", authRoutes);
+app.get("/", (req, res) => res.send("Auth Service API is running 🚀"));
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`🚀 Auth Service running on port ${PORT}`));
