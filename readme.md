@@ -51,9 +51,6 @@ GET	/api/auth/profile	Protected route (get user info)	Header: Authorization: Bea
 
 Deployment
 Service deployed on Render:
-
-arduino
-Copy code
 https://auth-service-wazj.onrender.com
 Environment variables must be set in Render dashboard: MONGO_URI, JWT_SECRET
 
