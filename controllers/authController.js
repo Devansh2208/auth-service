@@ -1,96 +1,112 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { BANGALORE_COLLEGES } from "../utils/collegeList.js";
+import { COMPANY_LIST } from "../utils/companyList.js";
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, college, company } = req.body;
 
-    // 1 Check if all fields are provided
+    // 1. Required: name, email, password
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required",
+      });
     }
 
-    // 2️ Check if user already exists
+    // 2. Block admin email from signup
+    if (email === "admin@example.com") {
+      return res.status(400).json({
+        success: false,
+        message: "This email cannot be used for signup",
+      });
+    }
+
+    // 3. At least one required → college OR company
+    if (!college && !company) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide at least one: college or company",
+      });
+    }
+
+    // 4. Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
+      return res.status(400).json({
+        success: false,
+        message: "User already exists",
+      });
     }
 
-    // 3️ Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // 5. Validate college → list OR custom
+    let finalCollege = null;
+    if (college) {
+      if (BANGALORE_COLLEGES.includes(college)) {
+        finalCollege = college; // selected from list
+      } else {
+        finalCollege = college; // custom typed
+      }
+    }
 
-    // 4️ Create new user
-    const newUser = new User({
+    // 6. Validate company → list OR custom
+    let finalCompany = null;
+    if (company) {
+      if (COMPANY_LIST.includes(company)) {
+        finalCompany = company; // selected from list
+      } else {
+        finalCompany = company; // custom typed
+      }
+    }
+
+    // 7. Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 8. Create user
+    const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
+      college: finalCollege,
+      company: finalCompany,
+      role: "user",
     });
 
-    await newUser.save();
-
-    // 5️ Generate JWT token
+    // 9. Generate JWT
     const token = jwt.sign(
-      { id: newUser._id, email: newUser.email },
+      {
+        id: newUser._id,
+        email: newUser.email,
+        role: newUser.role,
+        college: newUser.college,
+        company: newUser.company,
+      },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    res.status(201).json({
-      message: "User registered successfully",
+    // 10. Send success response
+    return res.status(201).json({
+      success: true,
+      message: "Signup successful",
       token,
       user: {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
+        college: newUser.college,
+        company: newUser.company,
+        role: newUser.role,
       },
     });
+
   } catch (error) {
     console.error("❌ Error in registerUser:", error.message);
-    res.status(500).json({ message: "Server Error", error: error.message });
-  }
-};
-export const loginUser = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // 1️ Check if fields are provided
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
-
-    // 2️ Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: "Invalid email or password" });
-    }
-
-    // 3️ Compare passwords
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid email or password" });
-    }
-
-    // 4️ Generate JWT
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
-    // 5️ Send response
-    res.status(200).json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      },
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
     });
-  } catch (error) {
-    console.error("❌ Error in loginUser:", error.message);
-    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
