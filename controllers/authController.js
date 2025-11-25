@@ -4,19 +4,21 @@ import jwt from "jsonwebtoken";
 import { BANGALORE_COLLEGES } from "../utils/collegeList.js";
 import { COMPANY_LIST } from "../utils/companyList.js";
 
+// REGISTER USER
+
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password, college, company } = req.body;
 
-    // 1. Required: name, email, password
+    // Required fields
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Name, email and password are required",
+        message: "Name, email, and password are required",
       });
     }
 
-    // 2. Block admin email from signup
+    // Admin cannot signup here
     if (email === "admin@example.com") {
       return res.status(400).json({
         success: false,
@@ -24,7 +26,7 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // 3. At least one required → college OR company
+    // At least one: college OR company
     if (!college && !company) {
       return res.status(400).json({
         success: false,
@@ -32,39 +34,35 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // 4. Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    // Check existing user
+    const existing = await User.findOne({ email });
+    if (existing) {
       return res.status(400).json({
         success: false,
         message: "User already exists",
       });
     }
 
-    // 5. Validate college → list OR custom
-    let finalCollege = null;
+    // Validate college
+    let finalCollege = college || null;
     if (college) {
       if (BANGALORE_COLLEGES.includes(college)) {
-        finalCollege = college; // selected from list
-      } else {
-        finalCollege = college; // custom typed
+        finalCollege = college;
       }
     }
 
-    // 6. Validate company → list OR custom
-    let finalCompany = null;
+    // Validate company
+    let finalCompany = company || null;
     if (company) {
       if (COMPANY_LIST.includes(company)) {
-        finalCompany = company; // selected from list
-      } else {
-        finalCompany = company; // custom typed
+        finalCompany = company;
       }
     }
 
-    // 7. Hash password
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 8. Create user
+    // Create user
     const newUser = await User.create({
       name,
       email,
@@ -74,7 +72,7 @@ export const registerUser = async (req, res) => {
       role: "user",
     });
 
-    // 9. Generate JWT
+    // Token
     const token = jwt.sign(
       {
         id: newUser._id,
@@ -87,26 +85,91 @@ export const registerUser = async (req, res) => {
       { expiresIn: "1d" }
     );
 
-    // 10. Send success response
     return res.status(201).json({
       success: true,
       message: "Signup successful",
       token,
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        college: newUser.college,
-        company: newUser.company,
-        role: newUser.role,
-      },
+      user: newUser,
     });
-
   } catch (error) {
-    console.error("❌ Error in registerUser:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    console.error("Error in registerUser:", error.message);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
+};
+
+// LOGIN USER (ADMIN + USER BOTH)
+
+export const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Fields required
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // Compare passwords
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role, // admin or user
+        college: user.college,
+        company: user.company,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: user.role === "admin" ? "Admin login successful" : "Login successful",
+      token,
+      user,
+    });
+  } catch (error) {
+    console.error("Error in loginUser:", error.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
+//Get All Colleges
+
+export const getColleges = (req, res) => {
+  return res.json({
+    success: true,
+    colleges: BANGALORE_COLLEGES,
+  });
+};
+
+
+export const getCompanies = (req, res) => {
+  return res.json({
+    success: true,
+    companies: COMPANY_LIST,
+  });
 };
