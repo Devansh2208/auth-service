@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 import { BANGALORE_COLLEGES } from "../utils/collegeList.js";
 import { COMPANY_LIST } from "../utils/companyList.js";
 
-// REGISTER USER
 
 export const registerUser = async (req, res) => {
   try {
@@ -18,7 +17,7 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Admin cannot signup here
+    // Prevent admin signup
     if (email === "admin@example.com") {
       return res.status(400).json({
         success: false,
@@ -26,7 +25,7 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // At least one: college OR company
+    // At least one field must be present
     if (!college && !company) {
       return res.status(400).json({
         success: false,
@@ -45,24 +44,20 @@ export const registerUser = async (req, res) => {
 
     // Validate college
     let finalCollege = college || null;
-    if (college) {
-      if (BANGALORE_COLLEGES.includes(college)) {
-        finalCollege = college;
-      }
+    if (college && BANGALORE_COLLEGES.includes(college)) {
+      finalCollege = college; // from dropdown
     }
 
     // Validate company
     let finalCompany = company || null;
-    if (company) {
-      if (COMPANY_LIST.includes(company)) {
-        finalCompany = company;
-      }
+    if (company && COMPANY_LIST.includes(company)) {
+      finalCompany = company; // from dropdown
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Create normal user
     const newUser = await User.create({
       name,
       email,
@@ -72,7 +67,7 @@ export const registerUser = async (req, res) => {
       role: "user",
     });
 
-    // Token
+    // Generate token
     const token = jwt.sign(
       {
         id: newUser._id,
@@ -91,29 +86,36 @@ export const registerUser = async (req, res) => {
       token,
       user: newUser,
     });
+
   } catch (error) {
     console.error("Error in registerUser:", error.message);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// LOGIN USER (ADMIN + USER BOTH)
 
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
-    // Fields required
-    if (!email || !password) {
+    // Required fields
+    if (!email || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required",
+        message: "Email, password, and role are required",
       });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Role must be valid
+    if (!["admin", "user"].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role. Must be 'admin' or 'user'",
+      });
+    }
 
+    // Find user
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({
         success: false,
@@ -121,7 +123,7 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Compare passwords
+    // Check password
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(400).json({
@@ -130,12 +132,20 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Generate token
+    // ROLE VALIDATION 
+    if (user.role !== role) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. This account is not registered as ${role}.`,
+      });
+    }
+
+    // Generate Token
     const token = jwt.sign(
       {
         id: user._id,
         email: user.email,
-        role: user.role, // admin or user
+        role: user.role,
         college: user.college,
         company: user.company,
       },
@@ -145,19 +155,17 @@ export const loginUser = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: user.role === "admin" ? "Admin login successful" : "Login successful",
+      message: role === "admin" ? "Admin login successful" : "Login successful",
       token,
       user,
     });
+
   } catch (error) {
     console.error("Error in loginUser:", error.message);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-
-
-//Get All Colleges
 
 export const getColleges = (req, res) => {
   return res.json({
