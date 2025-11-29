@@ -4,11 +4,11 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import User from "./models/User.js";
 import bcrypt from "bcryptjs";
-
+import cors from "cors";
 dotenv.config();
 
 const app = express();
-
+app.use(cors());
 // Middleware to parse JSON bodies
 app.use(express.json());
 
