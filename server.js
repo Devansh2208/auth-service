@@ -5,11 +5,11 @@ import authRoutes from "./routes/authRoutes.js";
 import User from "./models/User.js";
 import bcrypt from "bcryptjs";
 import cors from "cors";
+
 dotenv.config();
 
 const app = express();
 app.use(cors());
-// Middleware to parse JSON bodies
 app.use(express.json());
 
 // Connect to MongoDB
@@ -36,24 +36,27 @@ async function createAdminIfNotExists() {
     } else {
       console.log("Admin already exists");
     }
-
   } catch (err) {
     console.error("Error creating admin:", err.message);
   }
 }
 
-// CALL THE FUNCTION
 createAdminIfNotExists();
+
+// Dummy API for UptimeRobot
+app.get("/keepalive", (req, res) => {
+  res.status(200).json({ status: "alive", service: "auth-service" });
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
 
-// Root route
+// Root Route
 app.get("/", (req, res) => {
   res.send("Auth Service API is running");
 });
 
-// Listen on Render port or local port
+// Server Listen
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Auth Service running on port ${PORT}`);
